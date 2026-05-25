@@ -59,6 +59,7 @@ export function ActiveCallScreen() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const isVoiceOnly = callType === "voice";
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -80,8 +81,6 @@ export function ActiveCallScreen() {
       remoteAudioRef.current.play().catch(() => {});
     }
   }, [remoteStream, isVoiceOnly]);
-
-  const isVoiceOnly = callType === "voice";
 
   return (
     <div
