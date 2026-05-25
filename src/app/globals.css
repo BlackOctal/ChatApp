@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 146 74% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 146 74% 49%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 146 74% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 146 74% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Use dynamic viewport height for mobile */
+    height: 100%;
+    height: -webkit-fill-available;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
+    /* Prevent rubber-band scroll on iOS */
+    overscroll-behavior: none;
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  input, textarea, select {
+    font-size: 16px;
+  }
+}
+
+@layer utilities {
+  /* Safe area padding utilities */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+
+  .mt-safe { margin-top: env(safe-area-inset-top); }
+  .mb-safe { margin-bottom: env(safe-area-inset-bottom); }
+
+  /* Full-height that accounts for browser chrome on mobile */
+  .h-dvh { height: 100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
+  .max-h-dvh { max-height: 100dvh; }
+
+  /* Chat bubble tails */
+  .bubble-outgoing {
+    @apply bg-[#DCF8C6] rounded-2xl rounded-tr-sm;
+  }
+  .bubble-incoming {
+    @apply bg-white rounded-2xl rounded-tl-sm;
+  }
+
+  /* Scrollbar hide for mobile-feel lists */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Typing indicator dots */
+  .typing-dot {
+    @apply w-2 h-2 bg-gray-400 rounded-full inline-block;
+    animation: pulseDot 1.4s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+}
+
+/* Message timestamp overlay */
+.message-meta {
+  @apply text-[11px] text-gray-500 select-none;
+}
+
+/* Read receipt ticks */
+.tick-read { color: #53bdeb; }
+.tick-sent { color: #8696a0; }
+
+/* Waveform bars */
+.waveform-bar {
+  @apply bg-[#25D366] rounded-full;
+  transition: height 0.1s ease;
+}
+.waveform-bar.played {
+  @apply bg-gray-300;
+}

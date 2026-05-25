@@ -1,0 +1,64 @@
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // API routes must never be redirected — return 401 JSON instead
+  const isApiRoute = pathname.startsWith("/api/");
+
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(
+          cookiesToSet: { name: string; value: string; options?: CookieOptions }[]
+        ) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const publicPaths = ["/auth/login", "/auth/signup", "/auth/callback", "/auth/reset-password"];
+  const isPublic = publicPaths.some((p) => pathname.startsWith(p));
+
+  if (!user && !isPublic) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (user && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/chat";
+    return NextResponse.redirect(url);
+  }
+
+  return supabaseResponse;
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icons|sounds|sw.js|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};

@@ -1,0 +1,23 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-media",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/media/compress-video/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ]
+}
