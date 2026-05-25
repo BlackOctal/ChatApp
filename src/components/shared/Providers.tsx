@@ -7,6 +7,15 @@ import { useAuthStore } from "@/stores/authStore";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceWorkerBridge } from "./ServiceWorkerBridge";
 
+async function getOrCreateProfile() {
+  const res = await fetch("/api/users/ensure-profile", { method: "POST" });
+  if (!res.ok) {
+    console.error("[AuthSynchronizer] ensure-profile failed:", await res.text());
+    return null;
+  }
+  return res.json();
+}
+
 function AuthSynchronizer() {
   const setUser = useAuthStore((s) => s.setUser);
   const setLoading = useAuthStore((s) => s.setLoading);
@@ -14,33 +23,24 @@ function AuthSynchronizer() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data.session?.user) {
-        supabase
-          .from("users")
-          .select("*")
-          .eq("id", data.session.user.id)
-          .maybeSingle()
-          .then(({ data: profile }) => {
-            setUser(profile ?? null);
-            setLoading(false);
-          });
+        const profile = await getOrCreateProfile();
+        setUser(profile);
       } else {
         setUser(null);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        supabase
-          .from("users")
-          .select("*")
-          .eq("id", session.user.id)
-          .maybeSingle()
-          .then(({ data: profile }) => setUser(profile ?? null));
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT") {
         setUser(null);
+      } else if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user) {
+        // Only call ensure-profile on real sign-in — not TOKEN_REFRESHED,
+        // which fires while the new cookie is still being written (causes 401).
+        const profile = await getOrCreateProfile();
+        setUser(profile);
       }
     });
 

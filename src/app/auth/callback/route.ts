@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -12,9 +12,9 @@ export async function GET(request: Request) {
 
     if (!error && data.session?.user) {
       const user = data.session.user;
+      const admin = await createAdminClient();
 
-      // Ensure a public.users profile exists (OAuth users bypass the normal signup trigger)
-      const { data: existing } = await supabase
+      const { data: existing } = await admin
         .from("users")
         .select("id")
         .eq("id", user.id)
@@ -23,25 +23,21 @@ export async function GET(request: Request) {
       if (!existing) {
         const rawMeta = user.user_metadata ?? {};
         const email = user.email ?? "";
-        const baseUsername = email.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "");
+        const base = email.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "_");
 
-        // Check username uniqueness
-        const { data: dup } = await supabase
+        const { data: dup } = await admin
           .from("users")
           .select("id")
-          .eq("username", baseUsername)
+          .eq("username", base)
           .maybeSingle();
 
-        const username = dup
-          ? `${baseUsername}_${user.id.slice(0, 6)}`
-          : baseUsername;
+        const username = dup ? `${base}_${user.id.slice(0, 6)}` : base;
 
-        await supabase.from("users").insert({
+        await admin.from("users").insert({
           id: user.id,
           email,
           username,
-          full_name:
-            rawMeta.full_name ?? rawMeta.name ?? username,
+          full_name: rawMeta.full_name ?? rawMeta.name ?? base,
           avatar_url: rawMeta.avatar_url ?? rawMeta.picture ?? null,
         });
       }

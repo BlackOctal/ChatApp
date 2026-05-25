@@ -92,21 +92,17 @@ const CACHE_NAME = "chatapp-v1";
 const APP_SHELL = ["/", "/chat", "/offline.html"];
 
 self.addEventListener("fetch", (event) => {
-  // Only cache GET requests for navigation
+  // Only handle GET navigation requests — let everything else pass through
   if (event.request.method !== "GET") return;
+  if (event.request.mode !== "navigate") return;
   if (event.request.url.includes("/api/")) return;
   if (event.request.url.includes("supabase")) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return (
-        cached ??
-        fetch(event.request).catch(() => {
-          if (event.request.mode === "navigate") {
-            return caches.match("/offline.html");
-          }
-        })
-      );
-    })
+    fetch(event.request).catch(() =>
+      caches.match("/offline.html").then(
+        (r) => r ?? new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } })
+      )
+    )
   );
 });

@@ -43,6 +43,7 @@ drop function if exists public.get_or_create_direct_conversation(uuid) cascade;
 drop function if exists public.expire_old_media()                      cascade;
 drop function if exists public.is_conversation_participant(uuid)       cascade;
 drop function if exists public.update_updated_at_column()              cascade;
+drop function if exists public.upsert_my_profile(text,text,text,text)  cascade;
 
 
 -- ════════════════════════════════════════════════════════════
@@ -400,12 +401,40 @@ returns boolean language sql security definer stable set search_path = public as
   );
 $$;
 
+-- Called by the client on every login to ensure a profile row exists.
+-- Runs as postgres (security definer) so no INSERT RLS policy is needed.
+create or replace function public.upsert_my_profile(
+  p_email     text,
+  p_username  text,
+  p_full_name text,
+  p_avatar    text default null
+)
+returns public.users
+language plpgsql security definer set search_path = public as $$
+declare
+  uname  text := p_username;
+  result public.users;
+begin
+  -- Unique username if taken by someone else
+  if exists (select 1 from public.users where username = uname and id <> auth.uid()) then
+    uname := uname || '_' || substr(auth.uid()::text, 1, 6);
+  end if;
+
+  insert into public.users (id, email, username, full_name, avatar_url)
+  values (auth.uid(), p_email, uname, p_full_name, p_avatar)
+  on conflict (id) do nothing;
+
+  select * into result from public.users where id = auth.uid();
+  return result;
+end;
+$$;
+
 
 -- ════════════════════════════════════════════════════════════
 -- STEP 6 — GRANTS
 -- ════════════════════════════════════════════════════════════
-grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.users                     to authenticated;
+grant usage on schema public to anon, authenticated, service_role;
+grant all on public.users                     to authenticated, service_role;
 grant select, insert, update, delete on public.conversations             to authenticated;
 grant select, insert, update, delete on public.conversation_participants to authenticated;
 grant select, insert, update, delete on public.groups                    to authenticated;
@@ -417,6 +446,8 @@ grant select, insert, update, delete on public.calls                     to auth
 grant select, insert, update, delete on public.call_participants         to authenticated;
 grant select, insert, update, delete on public.notifications             to authenticated;
 grant select, insert, update, delete on public.typing_indicators         to authenticated;
+grant execute on function public.upsert_my_profile(text,text,text,text)  to authenticated;
+grant execute on function public.is_conversation_participant(uuid)        to authenticated;
 
 
 -- ════════════════════════════════════════════════════════════
@@ -438,6 +469,10 @@ alter table public.typing_indicators         enable row level security;
 -- USERS
 create policy "users_select" on public.users
   for select to authenticated using (true);
+
+create policy "users_insert" on public.users
+  for insert to authenticated
+  with check (id = auth.uid());
 
 create policy "users_update" on public.users
   for update to authenticated using (id = auth.uid());
@@ -699,6 +734,19 @@ create policy "typing_delete" on public.typing_indicators
 -- ════════════════════════════════════════════════════════════
 -- STEP 8 — REALTIME
 -- ════════════════════════════════════════════════════════════
+-- REPLICA IDENTITY FULL is required so Supabase Realtime can
+-- apply RLS checks on the old row for UPDATE/DELETE events.
+-- Without it, events on RLS-enabled tables are silently dropped.
+alter table public.conversations            replica identity full;
+alter table public.messages                 replica identity full;
+alter table public.conversation_participants replica identity full;
+alter table public.users                    replica identity full;
+alter table public.typing_indicators        replica identity full;
+alter table public.calls                    replica identity full;
+alter table public.call_participants        replica identity full;
+alter table public.message_reads            replica identity full;
+
+alter publication supabase_realtime add table public.conversations;
 alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.typing_indicators;
 alter publication supabase_realtime add table public.calls;
