@@ -69,12 +69,17 @@ export function ActiveCallScreen() {
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
-    }
-    // Always wire audio — covers voice-only calls and video calls when camera is off
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
     }
   }, [remoteStream]);
+
+  // Audio element only used for voice calls; video calls use the video element for audio
+  useEffect(() => {
+    if (isVoiceOnly && remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(() => {});
+    }
+  }, [remoteStream, isVoiceOnly]);
 
   const isVoiceOnly = callType === "voice";
 
@@ -88,14 +93,11 @@ export function ActiveCallScreen() {
       )}
     >
       {/* Remote video / avatar */}
-      <div className="flex-1 relative flex items-center justify-center">
-        {isVoiceOnly || !isCameraOn ? (
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        {isVoiceOnly ? (
+          /* Voice call — show avatar only */
           <div className="flex flex-col items-center gap-4 py-12">
-            <Avatar
-              src={remoteUserAvatar}
-              name={remoteUserName ?? "?"}
-              size="xl"
-            />
+            <Avatar src={remoteUserAvatar} name={remoteUserName ?? "?"} size="xl" />
             <div className="text-center">
               <p className="text-white font-semibold text-lg">{remoteUserName}</p>
               <p className="text-gray-400 text-sm mt-1">
@@ -104,16 +106,31 @@ export function ActiveCallScreen() {
             </div>
           </div>
         ) : (
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
+          /* Video call — always keep the video element mounted so the ref is stable */
+          <>
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            {/* Overlay avatar while waiting for remote video */}
+            {!remoteStream && (
+              <div className="absolute inset-0 bg-[#1A2327] flex flex-col items-center justify-center gap-4">
+                <Avatar src={remoteUserAvatar} name={remoteUserName ?? "?"} size="xl" />
+                <div className="text-center">
+                  <p className="text-white font-semibold text-lg">{remoteUserName}</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {state === "calling" ? "Calling…" : "Connecting…"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Local video PiP */}
-        {callType === "video" && localStream && (
+        {callType === "video" && localStream && isCameraOn && (
           <div className="absolute top-3 right-3 h-24 w-16 rounded-xl overflow-hidden border-2 border-white/30">
             <video
               ref={localVideoRef}
@@ -134,8 +151,8 @@ export function ActiveCallScreen() {
         </button>
       </div>
 
-      {/* Hidden audio output for remote stream (voice calls + camera-off video calls) */}
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      {/* Audio element only for voice calls — video calls use the <video> element for audio */}
+      {isVoiceOnly && <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />}
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-4 p-5 pb-safe">

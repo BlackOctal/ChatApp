@@ -19,6 +19,7 @@ export function useWebRTC() {
     pcRef.current?.close();
     pcRef.current = null;
     sharedWebRTC.setPc(null);
+    sharedWebRTC.clearCandidates();
     callStore.localStream?.getTracks().forEach((t) => t.stop());
     callStore.remoteStream?.getTracks().forEach((t) => t.stop());
     callStore.reset();
@@ -168,6 +169,8 @@ export function useWebRTC() {
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+      // Flush any ICE candidates that arrived before the offer was processed
+      await sharedWebRTC.flushCandidates(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 

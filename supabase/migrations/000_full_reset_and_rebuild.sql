@@ -401,6 +401,16 @@ returns boolean language sql security definer stable set search_path = public as
   );
 $$;
 
+-- RLS helper for group membership — security definer avoids recursive policy evaluation
+-- on group_members (gm_select referencing itself would cause infinite recursion).
+create or replace function public.is_group_member(gid uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.group_members
+    where group_id = gid and user_id = auth.uid()
+  );
+$$;
+
 -- Called by the client on every login to ensure a profile row exists.
 -- Runs as postgres (security definer) so no INSERT RLS policy is needed.
 create or replace function public.upsert_my_profile(
@@ -447,6 +457,7 @@ grant select, insert, update, delete on public.call_participants         to auth
 grant select, insert, update, delete on public.notifications             to authenticated;
 grant select, insert, update, delete on public.typing_indicators         to authenticated;
 grant execute on function public.upsert_my_profile(text,text,text,text)  to authenticated;
+grant execute on function public.is_group_member(uuid)                    to authenticated;
 grant execute on function public.is_conversation_participant(uuid)        to authenticated;
 
 
@@ -547,10 +558,7 @@ create policy "groups_select" on public.groups
   for select to authenticated
   using (
     created_by = auth.uid()
-    or exists (
-      select 1 from group_members
-      where group_id = id and user_id = auth.uid()
-    )
+    or is_group_member(id)
   );
 
 create policy "groups_insert" on public.groups
@@ -570,13 +578,7 @@ create policy "groups_update" on public.groups
 -- GROUP MEMBERS
 create policy "gm_select" on public.group_members
   for select to authenticated
-  using (
-    user_id = auth.uid()
-    or exists (
-      select 1 from group_members gm2
-      where gm2.group_id = group_id and gm2.user_id = auth.uid()
-    )
-  );
+  using (user_id = auth.uid() or is_group_member(group_id));
 
 create policy "gm_insert" on public.group_members
   for insert to authenticated
@@ -587,12 +589,7 @@ create policy "gm_insert" on public.group_members
         select 1 from groups g
         where g.id = group_id and g.created_by = auth.uid()
       )
-      or exists (
-        select 1 from group_members admins
-        where admins.group_id    = group_id
-          and admins.user_id    = auth.uid()
-          and admins.is_admin   = true
-      )
+      or is_group_member(group_id)
     )
   );
 

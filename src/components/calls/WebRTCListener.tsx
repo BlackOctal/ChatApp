@@ -49,6 +49,8 @@ export function WebRTCListener() {
           const pc = sharedWebRTC.getPc();
           if (pc?.signalingState === "have-local-offer" && payload.sdp) {
             await pc.setRemoteDescription({ type: "answer", sdp: payload.sdp });
+            // Flush candidates that arrived before the answer
+            await sharedWebRTC.flushCandidates(pc);
           }
         }
 
@@ -58,12 +60,16 @@ export function WebRTCListener() {
             try {
               await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
             } catch {}
+          } else {
+            // Remote description not set yet — queue for later
+            sharedWebRTC.queueCandidate(payload.candidate);
           }
         }
 
         if (payload.type === "hangup") {
           sharedWebRTC.getPc()?.close();
           sharedWebRTC.setPc(null);
+          sharedWebRTC.clearCandidates();
           callStore.localStream?.getTracks().forEach((t) => t.stop());
           callStore.remoteStream?.getTracks().forEach((t) => t.stop());
           callStore.reset();
@@ -73,6 +79,7 @@ export function WebRTCListener() {
           toast({ title: "Call rejected" });
           sharedWebRTC.getPc()?.close();
           sharedWebRTC.setPc(null);
+          sharedWebRTC.clearCandidates();
           callStore.localStream?.getTracks().forEach((t) => t.stop());
           callStore.remoteStream?.getTracks().forEach((t) => t.stop());
           callStore.reset();

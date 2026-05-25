@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ExternalLink } from "lucide-react";
+import { SocialEmbed } from "@/components/chat/SocialEmbed";
 import type { LinkPreview } from "@/types";
 
 export function LinkPreviewCard({ url }: { url: string }) {
@@ -28,6 +29,11 @@ export function LinkPreviewCard({ url }: { url: string }) {
         </div>
       </div>
     );
+  }
+
+  // YouTube / TikTok / Instagram / Facebook — show embeddable player
+  if (preview?.can_embed) {
+    return <SocialEmbed url={url} metadata={preview as unknown as Record<string, unknown>} />;
   }
 
   if (!preview?.title && !preview?.image) return null;

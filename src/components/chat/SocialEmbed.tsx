@@ -84,11 +84,10 @@ export function SocialEmbed({ url, metadata }: SocialEmbedProps) {
       <iframe
         src={embedUrl}
         className="w-full aspect-video"
-        allow="autoplay; encrypted-media; picture-in-picture"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen; accelerometer; gyroscope"
         allowFullScreen
         loading="lazy"
         onError={() => setEmbedFailed(true)}
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
       />
     </div>
   );

@@ -33,6 +33,7 @@ export interface LinkPreview {
   title?: string;
   description?: string;
   image?: string;
+  thumbnail?: string;
   platform?: "youtube" | "tiktok" | "instagram" | "facebook" | "generic";
   embed_url?: string;
   can_embed: boolean;
