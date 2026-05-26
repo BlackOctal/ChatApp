@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell, X } from "lucide-react";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAuthStore } from "@/stores/authStore";
+import { registerAndSaveToken } from "@/hooks/usePushNotifications";
 
 const DISMISSED_KEY = "notif_banner_dismissed";
 
 export function NotificationPermissionBanner() {
-  const { permission, requestPermission } = usePushNotifications();
-  const [dismissed, setDismissed] = useState(true); // hide until we know state
+  const user = useAuthStore((s) => s.user);
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [dismissed, setDismissed] = useState(true); // hidden until effect runs
 
   useEffect(() => {
+    if (!("Notification" in window)) {
+      setPermission("unsupported");
+      return;
+    }
+    setPermission(Notification.permission);
     setDismissed(localStorage.getItem(DISMISSED_KEY) === "1");
   }, []);
 
@@ -19,12 +26,16 @@ export function NotificationPermissionBanner() {
     setDismissed(true);
   }
 
-  async function handleEnable() {
-    await requestPermission();
+  const handleEnable = useCallback(async () => {
+    if (!("Notification" in window)) return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    if (result === "granted" && user?.id) {
+      await registerAndSaveToken(user.id);
+    }
     dismiss();
-  }
+  }, [user?.id]);
 
-  // Only show when permission hasn't been decided and user hasn't dismissed
   if (permission !== "default" || dismissed) return null;
 
   return (

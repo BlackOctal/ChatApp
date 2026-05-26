@@ -7,8 +7,30 @@ import { useAuthStore } from "@/stores/authStore";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceWorkerBridge } from "./ServiceWorkerBridge";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { User } from "@/types";
 
-async function ensureProfile(authUser: SupabaseUser) {
+// Build a minimal User object from Supabase auth user metadata.
+// Used as a fallback when the DB profile row can't be read or created.
+function buildUserFromAuth(authUser: SupabaseUser): User {
+  const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
+  const email = authUser.email ?? "";
+  const rawName = String(meta.full_name ?? meta.name ?? email.split("@")[0] ?? "User");
+  return {
+    id: authUser.id,
+    email,
+    username: rawName.toLowerCase().replace(/[^a-z0-9_]/g, "_") || "user",
+    full_name: rawName,
+    avatar_url: (meta.avatar_url ?? meta.picture ?? null) as string | null,
+    about: null,
+    presence: "online",
+    last_seen: new Date().toISOString(),
+    fcm_token: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function ensureProfile(authUser: SupabaseUser): Promise<User | null> {
   const supabase = createClient();
   const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
   const email = authUser.email ?? "";
@@ -22,7 +44,7 @@ async function ensureProfile(authUser: SupabaseUser) {
       .select("*")
       .eq("id", authUser.id)
       .maybeSingle();
-    if (existing) return existing;
+    if (existing) return existing as User;
 
     // 2. Try the security-definer RPC (created in migration)
     const { data: rpcData, error: rpcErr } = await supabase.rpc("upsert_my_profile", {
@@ -31,9 +53,9 @@ async function ensureProfile(authUser: SupabaseUser) {
       p_full_name: rawName || base,
       p_avatar: (meta.avatar_url ?? meta.picture ?? null) as string | null,
     });
-    if (!rpcErr && rpcData) return rpcData;
+    if (!rpcErr && rpcData) return rpcData as User;
 
-    // 3. Direct upsert fallback (works if users_insert RLS policy exists)
+    // 3. Direct upsert fallback
     const { data: upserted } = await supabase
       .from("users")
       .upsert(
@@ -48,10 +70,12 @@ async function ensureProfile(authUser: SupabaseUser) {
       )
       .select()
       .single();
-    return upserted ?? null;
+    if (upserted) return upserted as User;
   } catch {
-    return null;
+    // All DB paths failed — caller will use auth metadata fallback
   }
+
+  return null;
 }
 
 function AuthSynchronizer() {
@@ -64,15 +88,14 @@ function AuthSynchronizer() {
     // Safety net: loading must end even if Supabase is unreachable
     const fallbackTimer = setTimeout(() => setLoading(false), 8000);
 
-    // INITIAL_SESSION fires synchronously on mount with the current session state.
-    // Using it instead of getSession() avoids a race where SIGNED_IN fires before
-    // getSession() resolves and we call ensureProfile twice.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "INITIAL_SESSION") {
           if (session?.user) {
             const profile = await ensureProfile(session.user);
-            setUser(profile);
+            // CRITICAL: if DB profile is unavailable, never log the user out.
+            // Fall back to auth metadata so the app stays functional.
+            setUser(profile ?? buildUserFromAuth(session.user));
           } else {
             setUser(null);
           }
@@ -81,7 +104,7 @@ function AuthSynchronizer() {
         } else if (event === "SIGNED_IN" || event === "USER_UPDATED") {
           if (session?.user) {
             const profile = await ensureProfile(session.user);
-            setUser(profile);
+            setUser(profile ?? buildUserFromAuth(session.user));
           }
         } else if (event === "SIGNED_OUT") {
           setUser(null);

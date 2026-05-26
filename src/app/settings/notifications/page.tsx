@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bell, BellOff, AlertCircle } from "lucide-react";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAuthStore } from "@/stores/authStore";
+import { registerAndSaveToken } from "@/hooks/usePushNotifications";
+
+type PermState = NotificationPermission | "unsupported";
 
 interface Toggle {
   label: string;
@@ -22,15 +25,26 @@ const TOGGLES: Toggle[] = [
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { permission, requestPermission } = usePushNotifications();
+  const user = useAuthStore((s) => s.user);
+  const [permission, setPermission] = useState<PermState>("unsupported");
   const [settings, setSettings] = useState<Record<string, boolean>>({
-    messages: true,
-    calls: true,
-    groups: true,
-    sounds: true,
-    vibration: true,
-    preview: true,
+    messages: true, calls: true, groups: true,
+    sounds: true, vibration: true, preview: true,
   });
+
+  useEffect(() => {
+    if (!("Notification" in window)) { setPermission("unsupported"); return; }
+    setPermission(Notification.permission);
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    if (!("Notification" in window)) return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    if (result === "granted" && user?.id) {
+      await registerAndSaveToken(user.id);
+    }
+  }, [user?.id]);
 
   function toggle(key: string) {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -84,8 +98,7 @@ export default function NotificationsPage() {
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-foreground">Notifications blocked</p>
               <p className="text-xs text-gray-500 dark:text-muted-foreground mt-0.5">
-                You blocked notifications for this site. To re-enable, open your browser settings and allow
-                notifications for this site.
+                Open your browser site settings and allow notifications for this site.
               </p>
             </div>
           </div>

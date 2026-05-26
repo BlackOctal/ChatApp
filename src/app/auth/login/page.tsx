@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(null);
+  // const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(null);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -31,26 +31,25 @@ export default function LoginPage() {
     setLoading(false);
   }
 
-  async function handleOAuth(provider: "google" | "apple") {
-    setOauthLoading(provider);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
-      },
-    });
-    if (error) {
-      toast({
-        title: `${provider === "google" ? "Google" : "Apple"} login failed`,
-        description: error.message,
-        variant: "destructive",
-      });
-      setOauthLoading(null);
-    }
-    // On success the browser is redirected — no need to clear loading state
-  }
+  // async function handleOAuth(provider: "google" | "apple") {
+  //   setOauthLoading(provider);
+  //   const supabase = createClient();
+  //   const { error } = await supabase.auth.signInWithOAuth({
+  //     provider,
+  //     options: {
+  //       redirectTo: `${window.location.origin}/auth/callback`,
+  //       queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
+  //     },
+  //   });
+  //   if (error) {
+  //     toast({
+  //       title: `${provider === "google" ? "Google" : "Apple"} login failed`,
+  //       description: error.message,
+  //       variant: "destructive",
+  //     });
+  //     setOauthLoading(null);
+  //   }
+  // }
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-white px-6 pt-safe pb-safe">
@@ -64,7 +63,7 @@ export default function LoginPage() {
           <p className="text-sm text-gray-500 text-center">Sign in to your account</p>
         </div>
 
-        {/* OAuth */}
+        {/* OAuth — commented out until Google/Apple credentials are configured
         <div className="space-y-3">
           <Button
             variant="secondary"
@@ -96,12 +95,12 @@ export default function LoginPage() {
           </Button>
         </div>
 
-        {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-gray-200" />
           <span className="text-xs text-gray-400">or</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
+        */}
 
         {/* Email form */}
         <form onSubmit={handleEmailLogin} className="space-y-4">

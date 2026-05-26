@@ -48,6 +48,16 @@ export default function CallsPage() {
     enabled: !!user?.id,
     queryFn: async (): Promise<CallWithParticipants[]> => {
       const supabase = createClient();
+
+      // Get conversation IDs this user participates in
+      const { data: memberships } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", user!.id);
+
+      const convIds = (memberships ?? []).map((m) => m.conversation_id);
+      if (convIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("calls")
         .select(`
@@ -59,6 +69,7 @@ export default function CallsPage() {
           ),
           conversation:conversations(*)
         `)
+        .in("conversation_id", convIds)
         .order("started_at", { ascending: false })
         .limit(50);
 

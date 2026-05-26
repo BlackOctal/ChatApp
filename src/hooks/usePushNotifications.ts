@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/Toaster";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
-async function registerAndSaveToken(userId: string) {
+export async function registerAndSaveToken(userId: string) {
   try {
     const messaging = await getFirebaseMessaging();
     if (!messaging) return;
@@ -26,17 +26,8 @@ async function registerAndSaveToken(userId: string) {
       const supabase = createClient();
       await supabase.from("users").update({ fcm_token: token }).eq("id", userId);
     }
-
-    onMessage(messaging, (payload) => {
-      // Don't show a toast for incoming calls — the call modal handles that
-      if (payload.data?.action === "incoming_call") return;
-      toast({
-        title: payload.notification?.title ?? "New message",
-        description: payload.notification?.body,
-      });
-    });
   } catch (err) {
-    if (location.protocol === "https:") console.error("FCM init failed:", err);
+    if (location.protocol === "https:") console.error("FCM token registration failed:", err);
   }
 }
 
@@ -58,6 +49,23 @@ export function usePushNotifications() {
     if (!user?.id || permission !== "granted") return;
     registerAndSaveToken(user.id);
   }, [user?.id, permission]);
+
+  // Register foreground message listener exactly once per mount.
+  // onMessage returns an unsubscribe fn — clean it up on unmount.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    getFirebaseMessaging().then((messaging) => {
+      if (!messaging) return;
+      unsubscribe = onMessage(messaging, (payload) => {
+        if (payload.data?.action === "incoming_call") return;
+        toast({
+          title: payload.notification?.title ?? "New message",
+          description: payload.notification?.body,
+        });
+      });
+    });
+    return () => { unsubscribe?.(); };
+  }, []);
 
   const requestPermission = useCallback(async () => {
     if (!("Notification" in window)) return;
