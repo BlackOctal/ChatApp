@@ -1,4 +1,4 @@
-export type SocialPlatform = "youtube" | "tiktok" | "instagram" | "facebook" | "generic";
+export type SocialPlatform = "youtube" | "tiktok" | "instagram" | "facebook" | "generic" | "image";
 
 export interface EmbedInfo {
   platform: SocialPlatform;
@@ -12,13 +12,17 @@ export function detectSocialEmbed(url: string): EmbedInfo {
     const u = new URL(url);
     const host = u.hostname.replace("www.", "");
 
-    // YouTube
+    // YouTube — standard watch, youtu.be, Shorts, embeds
     if (host === "youtube.com" || host === "youtu.be" || host === "m.youtube.com") {
       let videoId: string | null = null;
       if (host === "youtu.be") {
-        videoId = u.pathname.slice(1);
+        videoId = u.pathname.slice(1).split("?")[0];
+      } else if (u.pathname.startsWith("/shorts/")) {
+        videoId = u.pathname.split("/shorts/")[1]?.split("?")[0] ?? null;
+      } else if (u.pathname.startsWith("/embed/")) {
+        videoId = u.pathname.split("/embed/")[1]?.split("?")[0] ?? null;
       } else {
-        videoId = u.searchParams.get("v") ?? u.pathname.split("/").pop() ?? null;
+        videoId = u.searchParams.get("v");
       }
       if (videoId) {
         return {
@@ -30,37 +34,33 @@ export function detectSocialEmbed(url: string): EmbedInfo {
       }
     }
 
-    // TikTok
-    if (host === "tiktok.com" || host === "vm.tiktok.com") {
-      const videoId = u.pathname.split("/").filter(Boolean).pop();
+    // TikTok — iframes are blocked by TikTok's X-Frame-Options; open native app
+    if (host === "tiktok.com" || host === "vm.tiktok.com" || host === "vt.tiktok.com") {
       return {
         platform: "tiktok",
-        embed_url: videoId ? `https://www.tiktok.com/embed/${videoId}` : null,
+        embed_url: null,
         thumbnail: null,
-        can_embed: !!videoId,
+        can_embed: false,
       };
     }
 
-    // Instagram
+    // Instagram — iframes blocked; open native app
     if (host === "instagram.com" || host === "instagr.am") {
-      const match = u.pathname.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
-      if (match) {
-        return {
-          platform: "instagram",
-          embed_url: `https://www.instagram.com/${match[1]}/${match[2]}/embed/`,
-          thumbnail: null,
-          can_embed: true,
-        };
-      }
+      return {
+        platform: "instagram",
+        embed_url: null,
+        thumbnail: null,
+        can_embed: false,
+      };
     }
 
-    // Facebook
+    // Facebook — iframes require SDK; open native app
     if (host === "facebook.com" || host === "fb.com" || host === "fb.watch") {
       return {
         platform: "facebook",
-        embed_url: `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(url)}&width=500`,
+        embed_url: null,
         thumbnail: null,
-        can_embed: true,
+        can_embed: false,
       };
     }
 

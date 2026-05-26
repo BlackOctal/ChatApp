@@ -5,6 +5,7 @@ import { useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
 import { useChatStore } from "@/stores/chatStore";
+import { toast } from "@/components/ui/Toaster";
 import type { MessageWithDetails } from "@/types";
 
 const EMPTY_MESSAGES: MessageWithDetails[] = [];
@@ -176,7 +177,15 @@ export function useSendMessage(conversationId: string) {
       return data;
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to send message",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 }
@@ -188,7 +197,6 @@ export function useDeleteMessage() {
   return useMutation({
     mutationFn: async ({
       messageId,
-      conversationId,
       forEveryone,
     }: {
       messageId: string;

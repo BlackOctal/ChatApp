@@ -36,18 +36,50 @@ export default function ProfilePage() {
 
   async function handleAvatarChange(file: File) {
     if (!user) return;
+
+    // iOS saves photos as HEIC which Supabase's avatars bucket rejects.
+    // Convert to JPEG via canvas before uploading.
+    let fileToUpload = file;
+    const isHeic = file.type === "image/heic" || file.type === "image/heif" ||
+      file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
+
+    if (isHeic) {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+        const blob = await new Promise<Blob>((res) =>
+          canvas.toBlob((b) => res(b!), "image/jpeg", 0.88)
+        );
+        fileToUpload = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      } catch {
+        toast({
+          title: "Could not convert photo",
+          description: "Please use a JPEG or PNG image.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setUploading(true);
     const supabase = createClient();
 
-    const ext = file.name.split(".").pop();
+    const ext = fileToUpload.name.split(".").pop() ?? "jpg";
     const path = `${user.id}/avatar.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(path, file, { upsert: true });
+      .upload(path, fileToUpload, { upsert: true, contentType: fileToUpload.type });
 
     if (uploadError) {
-      toast({ title: "Upload failed", variant: "destructive" });
+      toast({
+        title: "Upload failed",
+        description: uploadError.message,
+        variant: "destructive",
+      });
       setUploading(false);
       return;
     }
@@ -74,7 +106,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pb-16 md:pb-0">
+    <div className="flex flex-col h-full overflow-y-auto pb-16 md:pb-0 bg-gray-50">
       <div className="px-4 py-3 bg-white border-b border-gray-100 pt-safe">
         <h1 className="text-xl font-bold text-gray-900">Profile</h1>
       </div>

@@ -34,9 +34,10 @@ export interface LinkPreview {
   description?: string;
   image?: string;
   thumbnail?: string;
-  platform?: "youtube" | "tiktok" | "instagram" | "facebook" | "generic";
+  platform?: "youtube" | "tiktok" | "instagram" | "facebook" | "generic" | "image";
   embed_url?: string;
   can_embed: boolean;
+  is_image?: boolean;
 }
 
 // ---- Voice Recording ----

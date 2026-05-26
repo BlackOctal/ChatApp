@@ -41,16 +41,18 @@ export function useCreateGroup() {
       image_url?: string;
       member_ids: string[];
     }) => {
+      if (!user) throw new Error("Not authenticated");
       const supabase = createClient();
 
       // Create conversation first
       const { data: conv, error: convError } = await supabase
         .from("conversations")
-        .insert({ type: "group", created_by: user!.id })
+        .insert({ type: "group", created_by: user.id })
         .select()
         .single();
 
       if (convError) throw convError;
+      if (!conv) throw new Error("Failed to create conversation");
 
       // Create group
       const { data: group, error: groupError } = await supabase
@@ -59,13 +61,14 @@ export function useCreateGroup() {
           name: params.name,
           description: params.description ?? null,
           image_url: params.image_url ?? null,
-          created_by: user!.id,
+          created_by: user.id,
           conversation_id: conv.id,
         })
         .select()
         .single();
 
       if (groupError) throw groupError;
+      if (!group) throw new Error("Failed to create group");
 
       // Update conversation with group_id
       await supabase
@@ -74,13 +77,13 @@ export function useCreateGroup() {
         .eq("id", conv.id);
 
       // Add all members (creator + selected)
-      const allMemberIds = [...new Set([user!.id, ...params.member_ids])];
+      const allMemberIds = [...new Set([user.id, ...params.member_ids])];
       await supabase.from("group_members").insert(
         allMemberIds.map((uid) => ({
           group_id: group.id,
           user_id: uid,
-          is_admin: uid === user!.id,
-          added_by: user!.id,
+          is_admin: uid === user.id,
+          added_by: user.id,
         }))
       );
 
@@ -89,7 +92,7 @@ export function useCreateGroup() {
         allMemberIds.map((uid) => ({
           conversation_id: conv.id,
           user_id: uid,
-          is_admin: uid === user!.id,
+          is_admin: uid === user.id,
         }))
       );
 
@@ -129,6 +132,7 @@ export function useAddGroupMember(groupId: string) {
 
   return useMutation({
     mutationFn: async (userId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { data: group } = await supabase
         .from("groups")
         .select("conversation_id")
@@ -139,7 +143,7 @@ export function useAddGroupMember(groupId: string) {
         group_id: groupId,
         user_id: userId,
         is_admin: false,
-        added_by: user!.id,
+        added_by: user.id,
       });
 
       if (group?.conversation_id) {

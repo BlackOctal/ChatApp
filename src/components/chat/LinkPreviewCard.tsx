@@ -31,9 +31,33 @@ export function LinkPreviewCard({ url }: { url: string }) {
     );
   }
 
-  // YouTube / TikTok / Instagram / Facebook — show embeddable player
-  if (preview?.can_embed) {
-    return <SocialEmbed url={url} metadata={preview as unknown as Record<string, unknown>} />;
+  // Direct image URL — show full image, tap to open
+  if (preview?.is_image && preview.image) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+        <div className="rounded-xl overflow-hidden border border-gray-200">
+          <Image
+            src={preview.image}
+            alt="Image"
+            width={300}
+            height={200}
+            className="w-full object-cover"
+            unoptimized
+          />
+          <div className="px-3 py-1.5 flex items-center justify-between bg-gray-50">
+            <p className="text-xs text-gray-400 truncate">{new URL(url).hostname}</p>
+            <ExternalLink size={12} className="text-gray-400 flex-shrink-0" />
+          </div>
+        </div>
+      </a>
+    );
+  }
+
+  // Social embed (YouTube) or branded card (TikTok / Instagram / Facebook)
+  if (preview?.platform && preview.platform !== "generic") {
+    return (
+      <SocialEmbed url={url} metadata={preview as unknown as Record<string, unknown>} />
+    );
   }
 
   if (!preview?.title && !preview?.image) return null;
@@ -48,6 +72,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
             width={300}
             height={150}
             className="w-full object-cover max-h-36"
+            unoptimized
           />
         )}
         <div className="px-3 py-2 flex items-start justify-between gap-2">

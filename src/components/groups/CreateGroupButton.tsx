@@ -34,7 +34,7 @@ export function CreateGroupButton() {
     setSearching(true);
     const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    setSearchResults(data);
+    setSearchResults(Array.isArray(data) ? data : []);
     setSearching(false);
   }
 
