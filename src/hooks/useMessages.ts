@@ -161,6 +161,18 @@ export function useSendMessage(conversationId: string) {
         .single();
 
       if (error) throw error;
+
+      // Fire push notification in background — don't await, never block send
+      fetch("/api/notifications/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          sender_name: user!.full_name ?? "Someone",
+          message_preview: payload.content?.slice(0, 100) ?? "📎 Media",
+        }),
+      }).catch(() => {});
+
       return data;
     },
     onSuccess: () => {

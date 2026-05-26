@@ -9,6 +9,25 @@ import { sharedWebRTC } from "@/lib/webrtc/sharedState";
 import { toast } from "@/components/ui/Toaster";
 import type { CallType, WebRTCOffer } from "@/types";
 
+// iOS Safari blocks audio autoplay unless unlocked from within a user gesture.
+// Creating + immediately resuming an AudioContext inside a click handler
+// grants the page permission to play audio without further gestures.
+function unlockAudioAutoplay() {
+  try {
+    type WebkitAudio = typeof AudioContext;
+    const AC = (window.AudioContext ?? (window as unknown as { webkitAudioContext: WebkitAudio }).webkitAudioContext);
+    if (!AC) return;
+    const ctx = new AC();
+    // Play a silent 1-frame buffer then close — this is all that's needed
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    ctx.resume().then(() => ctx.close()).catch(() => {});
+  } catch {}
+}
+
 export function useWebRTC() {
   const user = useAuthStore((s) => s.user);
   const callStore = useCallStore();
@@ -71,6 +90,7 @@ export function useWebRTC() {
       remoteUserAvatar?: string;
     }) => {
       if (!user) return;
+      unlockAudioAutoplay();
       const supabase = createClient();
 
       const { data: call, error } = await supabase
@@ -147,6 +167,7 @@ export function useWebRTC() {
   const acceptCall = useCallback(
     async (callId: string, offerSdp: string, fromUserId: string, callType: CallType) => {
       if (!user) return;
+      unlockAudioAutoplay();
       const supabase = createClient();
 
       const stream = await navigator.mediaDevices.getUserMedia({

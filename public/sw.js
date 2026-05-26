@@ -1,11 +1,17 @@
 // ChatApp Service Worker
 // Handles FCM background notifications and offline caching
 
-importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
+// Wrap importScripts so a CDN failure (offline, CSP, Safari quirk) never
+// crashes the entire service worker and breaks navigation requests.
+let firebaseLoaded = false;
+try {
+  importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
+  importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
+  firebaseLoaded = true;
+} catch (e) {
+  console.warn("[SW] Firebase SDK failed to load — push notifications disabled:", e);
+}
 
-// Firebase config injected at runtime via env — we read from a meta tag approach.
-// The SW reads the config from a dedicated endpoint.
 let messaging = null;
 
 self.addEventListener("install", (event) => {
@@ -18,7 +24,7 @@ self.addEventListener("activate", (event) => {
 
 // Initialize Firebase once the SW is ready
 self.addEventListener("message", (event) => {
-  if (event.data?.type === "FIREBASE_CONFIG") {
+  if (event.data?.type === "FIREBASE_CONFIG" && firebaseLoaded) {
     try {
       if (!firebase.apps.length) {
         firebase.initializeApp(event.data.config);
@@ -62,7 +68,6 @@ self.addEventListener("notificationclick", (event) => {
   if (data.action === "incoming_call") url = `/calls`;
 
   if (event.action === "decline" && data.call_id) {
-    // Fire and forget reject
     fetch("/api/calls/reject", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,21 +92,35 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Offline fallback — cache app shell
-const CACHE_NAME = "chatapp-v1";
-const APP_SHELL = ["/", "/chat", "/offline.html"];
+// Offline fallback — only intercept same-origin navigations.
+// Excludes /auth/ to prevent redirect loops (middleware redirects
+// unauthenticated users to /auth/login; intercepting that creates a cycle).
+const CACHE_NAME = "chatapp-v2";
 
 self.addEventListener("fetch", (event) => {
-  // Only handle GET navigation requests — let everything else pass through
   if (event.request.method !== "GET") return;
   if (event.request.mode !== "navigate") return;
-  if (event.request.url.includes("/api/")) return;
-  if (event.request.url.includes("supabase")) return;
 
+  const url = event.request.url;
+  if (url.includes("/api/")) return;
+  if (url.includes("/auth/")) return;   // prevent auth redirect loops
+  if (url.includes("supabase")) return;
+
+  // Race network against a 10-second timeout so Safari never hangs forever
   event.respondWith(
-    fetch(event.request).catch(() =>
+    Promise.race([
+      fetch(event.request),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("sw-timeout")), 10000)
+      ),
+    ]).catch(() =>
       caches.match("/offline.html").then(
-        (r) => r ?? new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } })
+        (r) =>
+          r ??
+          new Response("Offline", {
+            status: 503,
+            headers: { "Content-Type": "text/plain" },
+          })
       )
     )
   );

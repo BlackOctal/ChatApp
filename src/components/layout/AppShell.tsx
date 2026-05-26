@@ -5,6 +5,7 @@ import { BottomNav } from "./BottomNav";
 import { DesktopSidebar } from "./DesktopSidebar";
 import { CallOverlay } from "@/components/calls/CallOverlay";
 import { WebRTCListener } from "@/components/calls/WebRTCListener";
+import { NotificationPermissionBanner } from "@/components/shared/NotificationPermissionBanner";
 import { useCallStore } from "@/stores/callStore";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
+        <NotificationPermissionBanner />
         {children}
       </main>
 

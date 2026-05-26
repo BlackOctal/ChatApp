@@ -10,35 +10,55 @@ export async function POST(req: NextRequest) {
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { to_user_id, message_preview, sender_name, conversation_id } = await req.json();
+  const { conversation_id, sender_name, message_preview } = await req.json();
 
   const adminSupabase = await createAdminClient();
 
-  const { data: recipient } = await adminSupabase
-    .from("users")
-    .select("fcm_token")
-    .eq("id", to_user_id)
-    .single();
+  // Get all participants except the sender
+  const { data: participants } = await adminSupabase
+    .from("conversation_participants")
+    .select("user_id")
+    .eq("conversation_id", conversation_id)
+    .neq("user_id", user.id);
 
-  if (!recipient?.fcm_token) {
-    return NextResponse.json({ sent: false });
+  if (!participants?.length) {
+    return NextResponse.json({ sent: false, reason: "No recipients" });
+  }
+
+  const recipientIds = participants.map((p) => p.user_id);
+
+  // Fetch FCM tokens for all recipients
+  const { data: recipients } = await adminSupabase
+    .from("users")
+    .select("id, fcm_token")
+    .in("id", recipientIds)
+    .not("fcm_token", "is", null);
+
+  if (!recipients?.length) {
+    return NextResponse.json({ sent: false, reason: "No FCM tokens" });
   }
 
   try {
     const { messaging } = await getFirebaseAdmin();
-    await messaging.send({
-      token: recipient.fcm_token,
-      notification: {
-        title: sender_name,
-        body: message_preview,
-      },
-      data: { conversation_id, action: "new_message" },
-      android: { priority: "high" },
-      apns: { payload: { aps: { sound: "default" } } },
-    });
+    await Promise.allSettled(
+      recipients
+        .filter((r) => r.fcm_token)
+        .map((r) =>
+          messaging.send({
+            token: r.fcm_token!,
+            notification: {
+              title: sender_name,
+              body: message_preview,
+            },
+            data: { conversation_id, action: "new_message" },
+            android: { priority: "high" },
+            apns: { payload: { aps: { sound: "default" } } },
+          })
+        )
+    );
   } catch (err) {
-    console.error("FCM send failed:", err);
+    console.error("FCM broadcast failed:", err);
   }
 
-  return NextResponse.json({ sent: true });
+  return NextResponse.json({ sent: true, count: recipients.length });
 }
